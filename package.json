@@ -1,0 +1,50 @@
+{
+  "name": "mealbuddy",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "firestore:deploy": "npx firebase-tools deploy --only firestore",
+    "storage:deploy": "npx firebase-tools deploy --only storage",
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "scrape:cenyslovensko": "node scripts/scrape-cenyslovensko.js",
+    "scrape:recepty": "node scripts/scrape-recepty-sk.js",
+    "scrape:recepty-categories": "node scripts/scrape-recepty-sk-categories.js",
+    "seed:common-ingredients": "node scripts/seed-common-ingredients.js",
+    "batch:match-ingredients": "node scripts/batch-match-ingredients.js",
+    "batch:cheaper-alternatives": "node scripts/batch-cheaper-alternatives.js"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/datetimepicker": "8.4.4",
+    "@react-navigation/bottom-tabs": "^7.10.1",
+    "@react-navigation/native": "^7.1.28",
+    "@react-navigation/native-stack": "^7.11.0",
+    "expo": "~54.0.34",
+    "expo-auth-session": "~7.0.11",
+    "expo-crypto": "~15.0.9",
+    "expo-haptics": "~15.0.8",
+    "expo-image-picker": "~17.0.11",
+    "expo-status-bar": "~3.0.9",
+    "expo-web-browser": "~15.0.11",
+    "firebase": "^12.8.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-safe-area-context": "^5.6.2",
+    "react-native-screens": "~4.16.0",
+    "react-native-svg": "15.12.1",
+    "react-native-web": "^0.21.0"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/react": "~19.1.10",
+    "cheerio": "^1.2.0",
+    "firebase-admin": "^13.6.0",
+    "puppeteer": "^24.36.1",
+    "typescript": "~5.9.2"
+  }
+}

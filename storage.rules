@@ -1,0 +1,36 @@
+rules_version = '2';
+
+// Firebase Storage pravidlá pre MealBuddy.
+//
+// Štruktúra:
+//   recipes/{id}.{ext}
+//     – obrázky verejných receptov, nahrávané scraperom cez Admin SDK
+//       (scripts/scrape-recepty-sk*.js). URL nemá download token, takže
+//       pre `<Image>` v RN (ktorý nepošle Firebase Auth) musíme povoliť
+//       anonymný read. Sú to verejné fotky receptov, nie privátne dáta.
+//     – Zápis je úplne zakázaný klientom – píše tam výhradne Admin SDK,
+//       ktorý rules ignoruje.
+//
+//   recipeImages/{uid}/{filename}
+//     – fotky vlastných receptov, ktoré používateľ nahrá v
+//       CreateRecipeScreen. Verejné na čítanie (recepty zdielajú všetci),
+//       zapisovať môže iba autor (`request.auth.uid == uid`).
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /recipes/{filename=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /recipeImages/{uid}/{filename=**} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // Implicitný deny pre ostatné cesty.
+  }
+}

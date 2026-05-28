@@ -1,0 +1,160 @@
+rules_version = '2';
+
+// MealBuddy – Firestore pravidlá
+// Kolekcie: users/{uid}, profiles/{uid}, recipes/{id},
+//   pantry/{uid}/items/{id}, shoppingLists/{uid}/lists/{listId}, plans/{uid}/weeks/{yyyy-ww},
+//   purchases/{uid}/orders/{orderId}
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      match /{subcollection}/{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    match /profiles/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // Ručné jednotkové ceny (override katalógu `prices`) – len vlastník profilu.
+      match /priceOverrides/{overrideId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    match /recipes/{recipeId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null;
+    }
+
+    // Zdieľaná domácnosť – členovia majú spoločný nákupný zoznam.
+    // Schema: { ownerUid, memberUids: [uid, ...], name, createdAt }
+    match /households/{householdId} {
+      // Člen alebo vlastník.
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.ownerUid
+        || request.auth.uid in resource.data.memberUids
+      );
+
+      // Nového vlastníka môže založiť ktokoľvek prihlásený. Musí sa zapísať
+      // ako vlastník a jediný počiatočný člen (aby sa nedal založiť cudzí
+      // hh s niekým iným ako vlastníkom).
+      allow create: if request.auth != null
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.memberUids is list
+        && request.resource.data.memberUids.hasOnly([request.auth.uid]);
+
+      // Update: členovia môžu meniť hocičo. Mimo členov je povolený len
+      // špecifický „accept-invite" prípad – pridať seba do memberUids
+      // a nič iné neupraviť.
+      allow update: if request.auth != null && (
+        request.auth.uid == resource.data.ownerUid
+        || request.auth.uid in resource.data.memberUids
+        || (
+          request.auth.uid in request.resource.data.memberUids
+          && request.resource.data.memberUids.hasAll(resource.data.memberUids)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids'])
+        )
+      );
+
+      allow delete: if request.auth != null
+        && request.auth.uid == resource.data.ownerUid;
+
+      // Spoločný nákupný zoznam domácnosti – iba členovia.
+      match /lists/{listId} {
+        allow read, write: if request.auth != null && (
+          request.auth.uid == get(/databases/$(database)/documents/households/$(householdId)).data.ownerUid
+          || request.auth.uid in get(/databases/$(database)/documents/households/$(householdId)).data.memberUids
+        );
+      }
+
+      // Verejný prehľad člena v rámci domácnosti (meno z účtu + e-mail na zobrazenie).
+      // Zapisovať môže iba samotný člen; čítať môžu všetci členovia domácnosti.
+      match /memberSummary/{memberUid} {
+        allow read: if request.auth != null && (
+          request.auth.uid == get(/databases/$(database)/documents/households/$(householdId)).data.ownerUid
+          || request.auth.uid in get(/databases/$(database)/documents/households/$(householdId)).data.memberUids
+        );
+        allow create, update: if request.auth != null
+          && request.auth.uid == memberUid
+          && (
+            request.auth.uid == get(/databases/$(database)/documents/households/$(householdId)).data.ownerUid
+            || request.auth.uid in get(/databases/$(database)/documents/households/$(householdId)).data.memberUids
+          );
+        // Pri odstránení domácnosti vlastník vymaže aj súhrny členov (batch).
+        allow delete: if request.auth != null
+          && request.auth.uid == get(/databases/$(database)/documents/households/$(householdId)).data.ownerUid;
+      }
+
+      // Zdieľaná špajza domácnosti (rovnakí členovia ako pri zozname).
+      match /pantryItems/{itemId} {
+        allow read, write: if request.auth != null && (
+          request.auth.uid == get(/databases/$(database)/documents/households/$(householdId)).data.ownerUid
+          || request.auth.uid in get(/databases/$(database)/documents/households/$(householdId)).data.memberUids
+        );
+      }
+    }
+
+    // E-mailové pozvánky do domácnosti.
+    // Schema: { householdId, inviterUid, emailLower, status, createdAt, ... }
+    match /householdInvites/{inviteId} {
+      allow create: if request.auth != null
+        && request.resource.data.inviterUid == request.auth.uid;
+
+      // Čítanie: pozývajúci alebo používateľ s rovnakým e-mailom (kontrola
+      // pomocou tokena – Firebase Auth e-mail je už lowercased).
+      allow read: if request.auth != null && (
+        resource.data.inviterUid == request.auth.uid
+        || resource.data.emailLower == request.auth.token.email
+      );
+
+      // Aktualizácia (accept/decline) – pre pozývajúceho alebo pozvaného.
+      allow update: if request.auth != null && (
+        resource.data.inviterUid == request.auth.uid
+        || resource.data.emailLower == request.auth.token.email
+      );
+
+      allow delete: if request.auth != null
+        && resource.data.inviterUid == request.auth.uid;
+    }
+
+    match /pantry/{userId}/items/{itemId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /shoppingLists/{userId}/lists/{listId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /plans/{userId}/weeks/{weekId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /purchases/{userId}/orders/{orderId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Jednotkové ceny potravín (FR-22) – zdieľané pre appku
+    match /prices/{priceId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // LLM cache pre mapovanie ingrediencií na produkty
+    match /ingredient_price_mappings/{mappingId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // LLM cache pre lacnejšie alternatívy ingrediencií (offline batch).
+    // Read-only pre prihlásených používateľov; write-prístup je obmedzený
+    // na batch skript, ktorý beží so service-account povereniami (admin SDK
+    // pravidlá obchádza úplne, takže mu reštrikcia nevadí).
+    match /cheaper_alternatives/{altId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+  }
+}
