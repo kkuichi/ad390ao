@@ -154,4 +154,5 @@ Tieto skripty **nie sú súčasťou behu aplikácie** — slúžili len na jedno
 5. `batch-cheaper-alternatives.js` — generovanie záznamov do `cheaper_alternatives`
 
 Zdroj receptov v databáze: **Recepty.sk**.
-Zdroj receptov v databáze: **Cenyslovensko.sk**.
+
+Zdroj cien v databáze: **Cenyslovensko.sk**.
